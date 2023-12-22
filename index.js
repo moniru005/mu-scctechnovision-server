@@ -1,7 +1,8 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const app = express();
 const port = process.env.PORT || 5000;
 
@@ -24,6 +25,12 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     client.connect();
 
+    const userCollection = client.db("sccTechnoDB").collection("users");
+    const tasksCollection = client.db("sccTechnoDB").collection("tasks");
+    const reviewsCollection = client.db("sccTechnoDB").collection("reviews");
+
+
+
     //jwt API
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -32,7 +39,7 @@ async function run() {
       });
       res.send({ token });
     });
-    
+
     //middleware
     const verifyToken = (req, res, next) => {
       console.log("inside verify token", req.headers.authorization);
@@ -65,6 +72,62 @@ async function run() {
       const result = await userCollection.insertOne(user);
       res.send(result);
     });
+
+    
+
+    // User Task API
+    app.post("/tasks", async (req, res) => {
+      const task = req.body;
+      const result = await tasksCollection.insertOne(task);
+      res.send(result);
+    });
+
+    app.get("/tasks",  async (req, res) => {
+      const result = await tasksCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.delete("/tasks/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await tasksCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //Update to Tasks
+    app.patch("/tasks/:id", async (req, res) => {
+      const item = req.body;
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          taskTitle: item.taskTitle,
+          taskDescription: item.taskDescription,
+          taskPriority: item.taskPriority,
+          taskDeadlines: item.taskDeadlines,
+        },
+      };
+      const result = await tasksCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+      console.log(result)
+    });
+
+    //Reviews
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result);
+    });
+
+
+
+    //User stats
+    app.get("/user-stats", verifyToken, async (req, res) => {
+        const users = await userCollection.estimatedDocumentCount();
+        const reviews = await reviewsCollection.estimatedDocumentCount();
+        const totalTask = await tasksCollection.estimatedDocumentCount();
+
+        res.send({users, reviews, totalTask});
+    })
 
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
